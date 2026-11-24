@@ -1,0 +1,29 @@
+# Finance AI Web - 개발용 DB 컨테이너 (Oracle + Redis)
+# 실행: docker compose up -d   (이 파일이 있는 폴더에서)
+name: faweb                              # 컨테이너 묶음 이름 → 볼륨도 faweb_oracle-data (다른 프로젝트와 안 겹침)
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: faweb-oracle
+    ports:
+      - "127.0.0.1:1521:1521"            # 내 PC 안에서만 (밖에서 못 들어오게)
+    environment:
+      ORACLE_PASSWORD: oracle1234        # SYS / SYSTEM 비밀번호
+      APP_USER: finance                  # 앱에서 쓸 계정 (FREEPDB1 안에 생성됨)
+      APP_USER_PASSWORD: finance1234
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: faweb-redis
+    ports:
+      - "127.0.0.1:6379:6379"
+
+volumes:
+  oracle-data:

@@ -1,0 +1,8 @@
+# 파일 위치: C:\shinhan\fullstack\ai\.dockerignore
+# 가상환경 · 학습 결과 · 비밀 키(.env)는 빼고, 모델은 이미지 안에서 다시 학습합니다
+.venv/
+__pycache__/
+models/
+data/
+chroma_db/
+.env

@@ -1,0 +1,56 @@
+# 파일   fullstackapi\src\main\resources\application.yml — Spring 설정
+spring:
+  application:
+    name: fullstackapi
+
+  # 기본 로그인 계정(자동 생성 비밀번호)을 만들지 않는다 → JWT 로만 인증
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  # ===== Oracle (docker-compose 의 faweb-oracle) =====
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521/FREEPDB1
+    username: finance
+    password: finance1234
+    driver-class-name: oracle.jdbc.OracleDriver
+
+  # ===== JPA =====
+  jpa:
+    hibernate:
+      ddl-auto: create                      # 실행할 때마다 테이블을 새로 만든다 (개발용)
+    defer-datasource-initialization: true   # 테이블 생성 후 data.sql 실행
+    open-in-view: false
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # ===== data.sql (금융상품 · 환율 기본 데이터) =====
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+
+  # ===== Redis (docker-compose 의 faweb-redis) =====
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+server:
+  port: 8081                       # React 가 부르는 주소 (Lab 은 8080)
+
+fastapi:
+  base-url: http://localhost:8001  # Spring 이 요청을 넘겨 줄 FastAPI (Lab 은 8000)
+
+jwt:
+  secret: finance-ai-web-jwt-secret-key-change-me-2026-shinhan   # 32바이트 이상 (실서비스는 환경변수로)
+  access-token-minutes: 30
+  refresh-token-days: 7
+
+cors:
+  allowed-origin: http://localhost:5174
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html         # http://localhost:8081/swagger-ui.html

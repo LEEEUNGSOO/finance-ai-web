@@ -1,0 +1,79 @@
+# ==============================================================
+# 파일   docker-compose.prod.yml — AWS EC2 배포용 (컨테이너 5개를 한 번에)
+# 실행   docker compose -f docker-compose.prod.yml up -d --build
+#
+#   브라우저 :80 → web(nginx + React) ─/api→ api(Spring :8081) → oracle · redis
+#                                                     └─/api/ai→ ai(FastAPI :8001) ─bank_products→ api
+#
+# 밖으로 여는 포트는 80 하나뿐입니다. Oracle · Redis · Spring · FastAPI 는 컨테이너끼리만 통합니다
+# 비밀값(OPENAI_API_KEY · JWT_SECRET)은 같은 폴더의 .env 에서 읽습니다 (Git 에는 올리지 않습니다)
+# ==============================================================
+# 컨테이너 5개를 한 파일로 정의하고 시작 순서를 정합니다.
+# 흐름: oracle · redis → (oracle healthy) → api → web / ai 는 따로 켜짐 → 브라우저는 web:80 으로만 들어옴
+name: faweb-prod
+
+services:
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+      APP_USER: finance                 # 처음 켤 때 finance 계정을 자동으로 만듭니다
+      APP_USER_PASSWORD: ${DB_PASSWORD} # ${...} 는 .env 의 값으로 바뀝니다
+      TZ: Asia/Seoul
+    volumes:
+      - oracle-data:/opt/oracle/oradata # DB 파일을 볼륨에 → 컨테이너를 다시 만들어도 남습니다
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s                # 처음 DB 를 만드는 2분은 검사 실패를 세지 않습니다
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine               # 설정 없이 그대로 씁니다 (비밀번호 없이, 밖으로는 열지 않습니다)
+    restart: unless-stopped
+
+  # ----- Spring — application.yml 의 localhost 값을 환경변수로 덮어씁니다 (코드 수정 없음) -----
+  api:
+    build: ./fullstackapi              # Spring 폴더 (서비스 이름은 api → nginx 의 api:8081)
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1   # localhost 대신 서비스 이름 oracle
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      FASTAPI_BASE_URL: http://ai:8001                                 # AI 메뉴 요청을 넘길 FastAPI 주소
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ALLOWED_ORIGIN: http://${PUBLIC_HOST}
+      TZ: Asia/Seoul
+      # 지금은 Spring 을 다시 켤 때마다 표를 새로 만들고 data.sql 을 다시 넣습니다 (시연용)
+      # 가입·글을 남기려면 첫 실행 뒤 아래 두 줄의 # 을 지우고 docker compose up -d 를 한 번 더 합니다 (「확인 · 막히면 · 정리」 단계의 11번)
+      # SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      # SPRING_SQL_INIT_MODE: never
+    depends_on:
+      oracle:
+        condition: service_healthy        # Oracle 이 (healthy) 가 된 뒤에 Spring 을 시작합니다
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ----- FastAPI — 모델은 이미지 만들 때 학습해 둡니다 (ai\Dockerfile) -----
+  ai:
+    build: ./ai                        # ai 폴더의 Dockerfile 로 이미지를 만듭니다
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}   # .env 의 키를 컨테이너 환경변수로
+      OPENAI_MODEL: gpt-4o-mini
+      SPRING_URL: http://api:8081         # bank_products 도구가 부를 Spring
+      TZ: Asia/Seoul
+    restart: unless-stopped
+
+  # ----- React + nginx — 80 번만 밖으로 -----
+  web:
+    build: ./web
+    ports:
+      - "80:80"                        # EC2 의 80 → 컨테이너 80 (유일하게 밖으로 열리는 포트)
+    depends_on:
+      - api                            # api 컨테이너를 먼저 띄웁니다
+    restart: unless-stopped
+
+volumes:
+  oracle-data:

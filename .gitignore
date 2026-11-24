@@ -1,0 +1,18 @@
+# secrets
+.env
+**/.env
+# python
+.venv/
+__pycache__/
+ai/models/
+ai/data/
+ai/chroma_db/
+# node
+node_modules/
+dist/
+# java
+build/
+.gradle/
+.idea/
+out/
+*.log

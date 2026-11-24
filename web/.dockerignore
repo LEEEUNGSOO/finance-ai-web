@@ -1,0 +1,4 @@
+# 파일 위치: C:\shinhan\fullstack\web\.dockerignore
+# node_modules 는 크고, 컨테이너 안에서 npm install 로 다시 만듭니다
+node_modules/
+dist/
